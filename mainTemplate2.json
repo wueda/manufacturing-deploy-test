@@ -1,0 +1,172 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "defaultValue": "[resourceGroup().location]",
+            "type": "String",
+            "metadata": {
+                "description": "Specifies the location of the deployment."
+            }
+        },
+        "prefix": {
+            "type": "String",
+            "metadata": {
+                "description": "Short string prepended to some resource names to make them unique."
+            }
+        },
+        "sqlAdministratorLogin": {
+            "defaultValue": "admin1",
+            "type": "String"
+        },
+        "sqlAdministratorLoginPassword": {
+            "type": "SecureString"
+        },
+        "storageAccountName": {
+            "defaultValue": "awildsynapsedemo",
+            "type": "String"
+        },
+        "synapseWorkspaceName": {
+            "defaultValue": "awild-synapse-workspacetest",
+            "type": "String"
+        },
+        "userAssignedIdentity": {
+            "defaultValue": "awild-identity-id",
+            "type": "String"
+        }
+    },
+    "variables": {
+        "apacheSparkPoolName": "[concat(parameters('synapseWorkspaceName'), '/', parameters('prefix'), 'sparkpool1')]",
+        "storageAccountUrl": "[concat('https://', parameters('storageAccountName'), '.dfs.core.windows.net')]",
+        "synapseFilesystem": "synapsecontainer",
+        "userAssignedIdentityPath": "[concat('/subscriptions/',subscription().subscriptionId,'/resourceGroups/',resourceGroup().name,'/providers/Microsoft.ManagedIdentity/userAssignedIdentities/',parameters('userAssignedIdentity'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Synapse/workspaces",
+            "apiVersion": "2021-06-01",
+            "name": "[parameters('synapseWorkspaceName')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                "[parameters('userAssignedIdentity')]"
+            ],
+            "identity": {
+                "type": "SystemAssigned,UserAssigned",
+                "userAssignedIdentities": {
+                    "[variables('userAssignedIdentityPath')]": {}
+                }
+            },
+            "properties": {
+                "defaultDataLakeStorage": {
+                    "resourceId": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                    "createManagedPrivateEndpoint": false,
+                    "accountUrl": "[variables('storageAccountUrl')]",
+                    "filesystem": "[variables('synapseFileSystem')]"
+                },
+                "encryption": {},
+                "managedResourceGroupName": "[parameters('location')]",
+                "sqlAdministratorLogin": "[parameters('sqlAdministratorLogin')]",
+                "sqlAdministratorLoginPassword": "[parameters('sqlAdministratorLoginPassword')]",
+                "privateEndpointConnections": [],
+                "publicNetworkAccess": "Enabled",
+                "azureADOnlyAuthentication": false,
+                "trustedServiceBypassEnabled": false
+            }
+        },
+        {
+            "type": "Microsoft.Synapse/workspaces/bigDataPools",
+            "apiVersion": "2021-06-01",
+            "name": "[variables('apacheSparkPoolName')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Synapse/workspaces', parameters('synapseWorkspaceName'))]"
+            ],
+            "properties": {
+                "sparkVersion": "3.1",
+                "nodeCount": 10,
+                "nodeSize": "Medium",
+                "nodeSizeFamily": "MemoryOptimized",
+                "autoScale": {
+                    "enabled": true,
+                    "minNodeCount": 3,
+                    "maxNodeCount": 6
+                },
+                "autoPause": {
+                    "enabled": false,
+                    "delayInMinutes": 60
+                },
+                "isComputeIsolationEnabled": false,
+                "sessionLevelPackagesEnabled": false,
+                "cacheSize": 0,
+                "dynamicExecutorAllocation": {
+                    "enabled": false
+                },
+                "provisioningState": "Succeeded"
+            }
+        },
+        {
+            "type": "Microsoft.Synapse/workspaces/firewallRules",
+            "apiVersion": "2021-06-01",
+            "name": "[concat(parameters('synapseWorkspaceName'), '/allowAll')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Synapse/workspaces', parameters('synapseWorkspaceName'))]"
+            ],
+            "properties": {
+                "startIpAddress": "0.0.0.0",
+                "endIpAddress": "255.255.255.255"
+            }
+        },
+        {
+            "type": "Microsoft.Synapse/workspaces/firewallRules",
+            "apiVersion": "2021-06-01",
+            "name": "[concat(parameters('synapseWorkspaceName'), '/AllowAllWindowsAzureIps')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Synapse/workspaces', parameters('synapseWorkspaceName'))]"
+            ],
+            "properties": {
+                "startIpAddress": "0.0.0.0",
+                "endIpAddress": "0.0.0.0"
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2020-10-01",
+            "name": "sleepAfterSynapseFireWallRules",
+            "location": "[parameters('location')]",
+            "kind": "AzurePowerShell",
+            "properties": {
+                "forceUpdateTag": "1",
+                "azPowerShellVersion": "3.0",
+                "scriptContent": "
+                    #We need v1.4.0, so that imported pipelines also create the elements in them. A notebook in our case
+                    Install-Module Az.Synapse -RequiredVersion 1.4.0 -Force
+
+                    #Notebook importen über Github repo
+                    $url = \"https://raw.githubusercontent.com/wueda/manufacturing-deploy-test/main/importTest.ipynb\"
+                    $myString = Invoke-WebRequest $url
+                    New-Item -Path . -Name \"importTest.ipynb\" -ItemType \"file\" -Value $myString
+                    Set-AzSynapseNotebook -WorkspaceName ${Env:workspaceName} -Name ${Env:noteBookName} -DefinitionFile \"./importTest.ipynb\"
+                    ",
+                "timeout": "PT30M",
+                "cleanupPreference": "Always",
+                "retentionInterval": "P1D",
+                                "environmentVariables": [
+                    {
+                        "name": "workspaceName",
+                        "value": "[parameters('synapseWorkspaceName')]"
+                    },
+                    {
+                        "name": "noteBookName",
+                        "value": "[concat(parameters('prefix'), '-notebook')]"
+                    },
+                    {
+                        "name": "storageAccount",
+                        "value": "[parameters('storageAccountName')]"
+                    }
+                ]
+            }
+        }
+    ]
+}
+
