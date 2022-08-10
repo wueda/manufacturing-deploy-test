@@ -47,10 +47,6 @@
             "apiVersion": "2021-06-01",
             "name": "[parameters('synapseWorkspaceName')]",
             "location": "[parameters('location')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
-                "[parameters('userAssignedIdentity')]"
-            ],
             "identity": {
                 "type": "SystemAssigned,UserAssigned",
                 "userAssignedIdentities": {
