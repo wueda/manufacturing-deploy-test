@@ -137,7 +137,7 @@
             "kind": "AzurePowerShell",
             "properties": {
                 "forceUpdateTag": "1",
-                "azPowerShellVersion": "3.0",
+                "azPowerShellVersion": "7.2.5",
                 "scriptContent": "
                     #We need v1.4.0, so that imported pipelines also create the elements in them. A notebook in our case
                     Install-Module Az.Synapse -RequiredVersion 1.4.0 -Force
