@@ -61,7 +61,7 @@
                     "filesystem": "[variables('synapseFileSystem')]"
                 },
                 "encryption": {},
-                "managedResourceGroupName": "[parameters('location')]",
+                "managedResourceGroupName": "[resourceGroup().name]",
                 "sqlAdministratorLogin": "[parameters('sqlAdministratorLogin')]",
                 "sqlAdministratorLoginPassword": "[parameters('sqlAdministratorLoginPassword')]",
                 "privateEndpointConnections": [],
