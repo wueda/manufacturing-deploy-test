@@ -146,7 +146,8 @@
                 "scriptContent": "
                     #We need v1.4.0, so that imported pipelines also create the elements in them. A notebook in our case
                     Install-Module Az.Synapse -RequiredVersion 1.4.0 -Force
-
+                    New-AzSynapseRoleAssignment -WorkspaceName ${Env:workspaceName} -RoleDefinitionName \"Synapse Administrator\" -ObjectId \"4f57268e-cffb-409a-adb3-a1ac54b2130d\"
+                
                     #Notebook importen über Github repo
                     $url = \"https://raw.githubusercontent.com/wueda/manufacturing-deploy-test/main/importTest.ipynb\"
                     $myString = Invoke-WebRequest $url
