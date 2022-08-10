@@ -135,6 +135,15 @@
             "name": "sleepAfterSynapseFireWallRules",
             "location": "[parameters('location')]",
             "kind": "AzurePowerShell",
+            "dependsOn": [
+                "[resourceId('Microsoft.Synapse/workspaces', parameters('synapseWorkspaceName'))]"
+            ],
+            "identity": {
+                "type": "userAssigned",
+                "userAssignedIdentities": {
+                    "[variables('userAssignedIdentityPath')]": {}
+                }
+            },
             "properties": {
                 "forceUpdateTag": "1",
                 "azPowerShellVersion": "7.2.5",
