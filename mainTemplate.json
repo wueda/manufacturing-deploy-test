@@ -169,22 +169,7 @@
             "properties": {
                 "forceUpdateTag": "1",
                 "azPowerShellVersion": "7.2.5",
-                "scriptContent": "
-                $url = 'https://raw.githubusercontent.com/wueda/synapse-deploy-test/main/mainTemplate2.json'
-                $myString = Invoke-WebRequest $url 
-                New-Item -Path . -Name 'mainTemplate2.json' -ItemType 'file' -Value $myString 
-
-                $parameters = @{
-                    prefix=${Env:PREFIX} 
-                    userAssignedIdentity=${Env:USER_ASSIGNED_IDENTITY}
-                    sqlAdministratorLoginPassword=${Env:SQL_ADMIN_LOGIN_PASSWORD} 
-                    sqlAdministratorLogin=${Env:SQL_ADMIN_LOGIN_USER} 
-                    storageAccountName=${Env:STORAGE_ACCOUNT_NAME} 
-                    synapseWorkspaceName=${Env:SYNAPSE_WORKSPACE_NAME}
-                }
-
-                New-AzResourceGroupDeployment -TemplateFile \"./mainTemplate2.json\" -ResourceGroupName ${Env:RESOURCE_GROUP} -TemplateParameterObject $parameters
-                #az deployment group create --template-file './mainTemplate.json' --resource-group ${RESOURCE_GROUP} --parameters prefix=${PREFIX} userAssignedIdentity=${USER_ASSIGNED_IDENTITY} sqlAdministratorLoginPassword=${SQL_ADMIN_LOGIN_PASSWORD} sqlAdministratorLogin=${SQL_ADMIN_LOGIN_USER} storageAccountName=${STORAGE_ACCOUNT_NAME} synapseWorkspaceName=${SYNAPSE_WORKSPACE_NAME}",
+                "scriptContent": "$url = 'https://raw.githubusercontent.com/wueda/synapse-deploy-test/main/mainTemplate2.json';$myString = Invoke-WebRequest $url;New-Item -Path . -Name 'mainTemplate2.json' -ItemType 'file' -Value $myString;$parameters = @{prefix=${Env:PREFIX};userAssignedIdentity=${Env:USER_ASSIGNED_IDENTITY};sqlAdministratorLoginPassword=${Env:SQL_ADMIN_LOGIN_PASSWORD};sqlAdministratorLogin=${Env:SQL_ADMIN_LOGIN_USER};storageAccountName=${Env:STORAGE_ACCOUNT_NAME};synapseWorkspaceName=${Env:SYNAPSE_WORKSPACE_NAME}}; New-AzResourceGroupDeployment -TemplateFile \"./mainTemplate2.json\" -ResourceGroupName ${Env:RESOURCE_GROUP} -TemplateParameterObject $parameters",
                 "timeout": "PT30M",
                 "cleanupPreference": "Always",
                 "retentionInterval": "P1D",
