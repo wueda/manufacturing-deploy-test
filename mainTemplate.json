@@ -25,10 +25,10 @@
             }
         },
         "sqlAdministratorLogin": {
-            "type": "SecureString"
+            "type": "secureString"
         },
         "sqlAdministratorLoginPassword": {
-            "type": "SecureString"
+            "type": "secureString"
         }
     },
     "variables": {
