@@ -170,7 +170,7 @@
                 "forceUpdateTag": "1",
                 "azPowerShellVersion": "7.2.5",
                 "scriptContent": "
-                $url = 'https://raw.githubusercontent.com/wueda/manufacturing-deploy-test/main/mainTemplate2.json‘
+                $url = 'https://raw.githubusercontent.com/wueda/synapse-deploy-test/main/mainTemplate2.json‘
                 $myString = Invoke-WebRequest $url 
                 New-Item -Path . -Name 'mainTemplate2.json' -ItemType 'file' -Value $myString 
 
