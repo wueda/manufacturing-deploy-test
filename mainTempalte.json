@@ -1,0 +1,225 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "defaultValue": "[resourceGroup().location]",
+            "type": "String",
+            "metadata": {
+                "description": "Specifies the location of the deployment."
+            }
+        },
+        "storageAccountName": {
+            "type": "String"
+        },
+        "synapseWorkspaceName": {
+            "type": "String"
+        },
+        "userAssignedIdentity": {
+            "type": "String"
+        },
+        "prefix": {
+            "type": "String",
+            "metadata": {
+                "description": "Short string prepended to some resource names to make them unique."
+            }
+        },
+        "sqlAdministratorLogin": {
+            "type": "SecureString"
+        },
+        "sqlAdministratorLoginPassword": {
+            "type": "SecureString"
+        }
+    },
+    "variables": {
+        "resourceGroupRoleAssignDeployment": "[guid(resourceGroup().id, parameters('userAssignedIdentity'))]",
+        "sleepResource": "[resourceId('Microsoft.Resources/deploymentScripts', 'sleep')]",
+        //The ID is the GUID for Owner. See: az role definition list --name "Contributor" /contr:b24988ac-6180-42a0-ab88-20f7382dd24c, owner: 8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+        "contributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]",
+        "synapseFilesystem": "synapsecontainer",
+        "identityResourceId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('userAssignedIdentity'))]"
+        },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2021-09-01",
+            "name": "[parameters('storageAccountName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard_RAGRS",
+                "tier": "Standard"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "defaultToOAuthAuthentication": false,
+                "publicNetworkAccess": "Enabled",
+                "allowCrossTenantReplication": false,
+                "isSftpEnabled": false,
+                "minimumTlsVersion": "TLS1_2",
+                "allowBlobPublicAccess": true,
+                "allowSharedKeyAccess": true,
+                "isHnsEnabled": true,
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "virtualNetworkRules": [],
+                    "ipRules": [],
+                    "defaultAction": "Allow"
+                },
+                "supportsHttpsTrafficOnly": true,
+                "encryption": {
+                    "requireInfrastructureEncryption": false,
+                    "services": {
+                        "file": {
+                            "keyType": "Account",
+                            "enabled": true
+                        },
+                        "blob": {
+                            "keyType": "Account",
+                            "enabled": true
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                },
+                "accessTier": "Hot"
+            }
+        },
+        {
+            "metadata": {
+                "comments": "User-assigned managed identity used by DeploymentScript."
+            },
+            "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+            "name": "[parameters('userAssignedIdentity')]",
+            "apiVersion": "2018-11-30",
+            "location": "[parameters('location')]"
+        },
+        {
+            "dependsOn": [ "[parameters('userAssignedIdentity')]" ],
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2020-10-01",
+            "name": "sleep",
+            "location": "[parameters('location')]",
+            "kind": "AzurePowerShell",
+            "properties": {
+                "forceUpdateTag": "1",
+                "azPowerShellVersion": "3.0",
+                "scriptContent": "Start-Sleep -Seconds 20",
+                "timeout": "PT30M",
+                "cleanupPreference": "Always",
+                "retentionInterval": "P1D"
+            }
+        },
+        {
+            "metadata": {
+                "comments": "Grant user-assigned managed identity permission on the scope of resource group."
+            },
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2020-04-01-preview",
+            "name": "[variables('resourceGroupRoleAssignDeployment')]",
+            "dependsOn": [
+                "[variables('sleepResource')]",
+                "[parameters('userAssignedIdentity')]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[variables('contributor')]",
+                "principalId": "[reference(parameters('userAssignedIdentity')).principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2021-09-01",
+            "name": "[concat(parameters('storageAccountName'), '/default/', variables('synapseFileSystem'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            ],
+            "properties": {
+                "publicAccess": "None"
+            }
+        },
+        {
+            "dependsOn": [ "[parameters('userAssignedIdentity')]" ],
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2020-10-01",
+            "name": "sleepUntilManagedIdentityIsCreated",
+            "location": "[parameters('location')]",
+            "kind": "AzurePowerShell",
+            "properties": {
+                "forceUpdateTag": "1",
+                "azPowerShellVersion": "3.0",
+                "scriptContent": "Start-Sleep -Seconds 1200",
+                "timeout": "PT30M",
+                "cleanupPreference": "Always",
+                "retentionInterval": "P1D"
+            }
+        },
+        {
+            "dependsOn": [ "[parameters('userAssignedIdentity')]",
+            "[resourceId('Microsoft.Resources/deploymentScripts', 'sleepUntilManagedIdentityIsCreated')]" ],
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2020-10-01",
+            "name": "DeploySecondARM",
+            "location": "[parameters('location')]",
+            "kind": "AzurePowerShell",
+            "identity": {
+                "type": "userAssigned",
+                "userAssignedIdentities": {
+                    "[variables('identityResourceId')]": {}
+                }
+            },
+            "properties": {
+                "forceUpdateTag": "1",
+                "azPowerShellVersion": "7.2.5",
+                "scriptContent": "
+                $url = 'https://raw.githubusercontent.com/wueda/manufacturing-deploy-test/main/mainTemplate2.json‘
+                $myString = Invoke-WebRequest $url 
+                New-Item -Path . -Name 'mainTemplate2.json' -ItemType 'file' -Value $myString 
+
+                $parameters = @{
+                    prefix=${Env:PREFIX} 
+                    userAssignedIdentity=${Env:USER_ASSIGNED_IDENTITY}
+                    sqlAdministratorLoginPassword=${Env:SQL_ADMIN_LOGIN_PASSWORD} 
+                    sqlAdministratorLogin=${Env:SQL_ADMIN_LOGIN_USER} 
+                    storageAccountName=${Env:STORAGE_ACCOUNT_NAME} 
+                    synapseWorkspaceName=${Env:SYNAPSE_WORKSPACE_NAME}
+                }
+
+                New-AzResourceGroupDeployment -TemplateFile \"./mainTemplate2.json\" -ResourceGroupName ${Env:RESOURCE_GROUP} -TemplateParameterObject $parameters
+                #az deployment group create --template-file './mainTemplate.json' --resource-group ${RESOURCE_GROUP} --parameters prefix=${PREFIX} userAssignedIdentity=${USER_ASSIGNED_IDENTITY} sqlAdministratorLoginPassword=${SQL_ADMIN_LOGIN_PASSWORD} sqlAdministratorLogin=${SQL_ADMIN_LOGIN_USER} storageAccountName=${STORAGE_ACCOUNT_NAME} synapseWorkspaceName=${SYNAPSE_WORKSPACE_NAME}",
+                "timeout": "PT30M",
+                "cleanupPreference": "Always",
+                "retentionInterval": "P1D",
+                "environmentVariables": [
+                    {
+                        "name": "SYNAPSE_WORKSPACE_NAME",
+                        "value": "[parameters('synapseWorkspaceName')]"
+                    },
+                    {
+                        "name": "STORAGE_ACCOUNT_NAME",
+                        "value": "[parameters('storageAccountName')]"
+                    },
+                    {
+                        "name": "RESOURCE_GROUP",
+                        "value": "[resourceGroup().name]"
+                    },
+                    {
+                        "name": "PREFIX",
+                        "value": "[parameters('prefix')]"
+                    },
+                    {
+                        "name": "USER_ASSIGNED_IDENTITY",
+                        "value": "[parameters('userAssignedIdentity')]"
+                    },
+                    {
+                        "name": "SQL_ADMIN_LOGIN_PASSWORD",
+                        "value": "[parameters('sqlAdministratorLoginPassword')]"
+                    },
+                    {
+                        "name": "SQL_ADMIN_LOGIN_USER",
+                        "value": "[parameters('sqlAdministratorLogin')]"
+                    }
+                ]
+            }
+        }
+    ]
+}
+
